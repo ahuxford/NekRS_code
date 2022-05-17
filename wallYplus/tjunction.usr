@@ -1,0 +1,124 @@
+      include "utilities.usr"
+      include "limits.f"
+c-----------------------------------------------------------------------
+      subroutine useric (ix,iy,iz,ieg)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userchk
+      include 'SIZE'
+      include 'TOTAL'
+
+      real wd
+      common /walldist/ wd(lx1,ly1,lz1,lelv)
+
+      real ywd_in
+      common /walldist/ ywd_in(lx1,ly1,lz1,lelv)
+
+      if(nid.eq.0) write(6,*)'Aaron wd' , wd(1,1,1,1), ywd_in(1,1,1,1)
+      if(nid.eq.0) write(6,*)'Aaron vx' , vx(1,1,1,1), vx(2,1,1,1)
+
+c     WARNING
+c     WARNING
+c     WARNING
+c     you have to specify mu and rho within limits.f
+c     in order to use the y+ limits function below
+c     because mu should = vdiff(1,1,1,1,1), but is 0
+c     because rho should = vtrans(1,1,1,1,1), but is 0
+
+c     WARNING
+c     do not call print_limits, will break y+ funciton
+c     not sure why right now...
+c      call print_limits
+
+      if(nid.eq.0) write(6,*) 'limits','min','max','ave'
+      call y_p_limits(wd,.true.) ! not sure if true or false matters
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat   ! This routine to modify element vertices
+      include 'SIZE'
+      include 'TOTAL'
+
+      return
+      end
+c-----------------------------------------------------------------------
+c-----------------------------------------------------------------------
+      subroutine usrdat2
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer i,n,iel,ifc,id_face
+      real xmin,xmax,ymin,ymax,scaley,scalex
+      real glmin,glmax
+
+      n=nx1*ny1*nz1*nelv
+
+c    for y+ function (wall dist func to be exact)
+c    must set bundary IDs for walls to W
+
+      do iel=1,nelv
+      do isd=1,2*ndim
+        id_line = bc(5,isd,iel,1)
+        if (id_line.eq.5) then ! ID of 5 is wall for this mesh
+           cbc(isd,iel,1) = 'W  '
+        endif
+      enddo
+      enddo
+
+
+      return
+      end
+c-----------------------------------------------------------------------
+c-----------------------------------------------------------------------
+      subroutine usrdat3()
+      implicit none
+      include 'SIZE'
+      include 'TOTAL'
+
+      real wd
+      common /walldist/ wd(lx1,ly1,lz1,lelv)
+
+      real ywd_in
+      common /walldist/ ywd_in(lx1,ly1,lz1,lelv)
+
+      integer ifld,m_id,w_id
+
+      real w1,w2,w3,w4,w5
+      common /SCRNS/
+     & w1(lx1*ly1*lz1*lelv)
+     &,w2(lx1*ly1*lz1*lelv)
+     &,w3(lx1*ly1*lz1*lelv)
+     &,w4(lx1*ly1*lz1*lelv)
+     &,w5(lx1*ly1*lz1*lelv)
+
+      integer n,wall_id,ifld_mx
+      character*3 bcw
+      character*36 mname(7)
+
+C     Wall distance function: (not strictly needed for k-tau, but nice to have)
+c       w_id = 0 ! user specified
+c      w_id = 1 ! cheap_dist (path to wall, may work better for periodic boundaries)
+      w_id = 2 ! distf (coordinate difference, provides smoother function)
+
+c     Calculate wall distance
+      if(w_id.eq.0) then
+        if(nid.eq.0) write(6,*) ' user supplied wall distance'
+c       call copy(wd,ywd_in,n)
+      else
+        ifld = 1
+        bcw    = 'W  '
+        if(nid.eq.0) write(6,*) 'BC for distance , w_id ',bcw, w_id
+        if(w_id.eq.1) call cheap_dist(ywd_in,ifld,bcw)
+        if(w_id.eq.2) call distf(ywd_in,ifld,bcw,w1,w2,w3,w4,w5)
+        call copy(wd,ywd_in,n)
+      endif
+
+      return
+      end
+c---------
